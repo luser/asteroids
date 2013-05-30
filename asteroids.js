@@ -1,20 +1,10 @@
-<!DOCTYPE html>
-<html><head>
-<meta charset="UTF-8">
-<title>asteroid</title>
-<style>
-canvas {
-  position: absolute;
-  top: 0px;
-  left: 0px;
-}
-</style>
-<script>
+var NUM_ASTEROIDS = 10;
 var asteroids = [];
+
 var ratio = 1;
-perfnow = function() { return Date.now(); }
+var perfnow = function() { return Date.now(); };
 if ('performance' in window) {
-  perfnow = function() { return performance.now(); }
+  perfnow = function() { return performance.now(); };
 }
 if (!('requestAnimationFrame' in window)) {
   if ('webkitRequestAnimationFrame' in window) {
@@ -26,7 +16,7 @@ if (!('requestAnimationFrame' in window)) {
   } else {
     requestAnimationFrame  = function(callback) {
       setTimeout(callback, 16.666);
-    }
+    };
   }
 }
 
@@ -112,7 +102,7 @@ function draw() {
   cx.fillRect(0, 0, cx.width, cx.height);
 
   var now = perfnow();
-  elapsed = (now - last) / 1000;
+  var elapsed = (now - last) / 1000;
   for (var i=0; i < asteroids.length; i++) {
     asteroids[i].run(elapsed, c.width, c.height);
     asteroids[i].draw(cx, c.width, c.height);
@@ -151,7 +141,6 @@ function fullscreen(thing) {
   thing.webkitRequestFullScreen || function(x) {}).call(thing);
 }
 
-var NUM_ASTEROIDS = 10;
 function setup() {
   resizeCanvas();
   var c = document.getElementById("c");
@@ -162,9 +151,3 @@ function setup() {
   }
   requestAnimationFrame(draw);
 }
-</script>
-</head>
-<body onload="setup()" onresize="resizeCanvas()">
-<canvas id="c" onclick="fullscreen(this)"></canvas>
-</body>
-</html>
