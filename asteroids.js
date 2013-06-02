@@ -144,8 +144,8 @@ function fullscreen(thing) {
 function setup() {
   resizeCanvas();
   var c = document.getElementById("c");
-  c.addEventListener("mozfullscreenchange", resizeCanvas);
-  c.addEventListener("webkitfullscreenchange", resizeCanvas);
+  addEventListener("mozfullscreenchange", resizeCanvas);
+  addEventListener("webkitfullscreenchange", resizeCanvas);
   for (var i=0; i<NUM_ASTEROIDS; i++) {
     asteroids.push(new asteroid(randInt(0, c.width), randInt(0, c.height)));
   }
