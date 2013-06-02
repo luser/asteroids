@@ -108,15 +108,12 @@ void main() { \
   var matrixLocation = gl.getUniformLocation(program, "u_matrix");
 
   var buffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
 
   function create2DProjection(width, height) {
-    var mat = mat3.create();
-    mat3.copy(mat, [2 / width, 0, 0,
-                    0, -2 / height, 0,
-                    -1, 1, 1
-                   ]);
-    return mat;
+    return mat3.copy(mat3.create(),
+                     [2 / width, 0, 0,
+                      0, -2 / height, 0,
+                      -1, 1, 1]);
   }
 
   this.resize = function() {
@@ -140,6 +137,7 @@ void main() { \
     for (var i = 0; i < points.length; i++) {
       arr.set(points[i], i*2);
     }
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(gl.ARRAY_BUFFER, arr, gl.STATIC_DRAW);
 
     mat3.identity(mat);
