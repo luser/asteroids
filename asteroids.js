@@ -57,7 +57,7 @@ Canvas2DRenderer.prototype = {
   drawPoly: function(x, y, angle, size, points) {
     this.cx.save();
     this.cx.strokeStyle = "white";
-    this.cx.lineWidth = this.ratio / size;
+    this.cx.lineWidth = this.ratio / (size * 2);
     this.cx.translate(x, y);
     this.cx.rotate(angle);
     this.cx.scale(size, size);
@@ -75,7 +75,7 @@ Canvas2DRenderer.prototype = {
 function WebGLRenderer(canvas) {
   var gl = canvas.getContext("experimental-webgl");
   var mat = mat3.create();
-  var projectionMatrix;
+  var projectionMatrix = mat3.create();
 
   var vertexShader = gl.createShader(gl.VERTEX_SHADER);
   gl.shaderSource(vertexShader, "attribute vec2 a_position; \
@@ -91,17 +91,19 @@ void main() { \
 } \
 ");
   gl.compileShader(fragmentShader);
+
   var program = gl.createProgram();
   gl.attachShader(program, vertexShader);
-
   gl.attachShader(program, fragmentShader);
   gl.linkProgram(program);
+
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
     gl.deleteProgram(program);
     return;
   }
 
   gl.useProgram(program);
+
   var positionLocation = gl.getAttribLocation(program, "a_position");
   var matrixLocation = gl.getUniformLocation(program, "u_matrix");
 
@@ -122,6 +124,7 @@ void main() { \
     canvas.style.height = height + "px";
     canvas.width = width * ratio;
     canvas.height = height * ratio;
+    gl.viewport(0, 0, canvas.width, canvas.height);
     projectionMatrix = create2DProjection(canvas.width, canvas.height);
   };
 
@@ -228,11 +231,15 @@ function fullscreen(thing) {
   thing.webkitRequestFullScreen || function(x) {}).call(thing);
 }
 
+function haveWebGL(c) {
+  return c.getContext("experimental-webgl") != null;
+}
+
 function setup() {
   var c = document.getElementById("c");
-  renderer =
-    //new WebGLRenderer(c);
-    new Canvas2DRenderer(c);
+  renderer = (window.location.search.indexOf("renderer=canvas2d") != -1 || !haveWebGL(c)) ?
+    new Canvas2DRenderer(c) :
+    new WebGLRenderer(c);
   resizeCanvas();
   addEventListener("mozfullscreenchange", resizeCanvas);
   addEventListener("webkitfullscreenchange", resizeCanvas);
