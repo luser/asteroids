@@ -62,11 +62,9 @@ Canvas2DRenderer.prototype = {
     this.cx.rotate(angle);
     this.cx.scale(size, size);
     this.cx.beginPath();
-    var p = points[0];
-    this.cx.moveTo(p[0], p[1]);
-    for (var i = 1; i < points.length; i++) {
-      p = points[i];
-      this.cx.lineTo(p[0], p[1]);
+    this.cx.moveTo(points[0], points[1]);
+    for (var i = 2; i < points.length; i += 2) {
+      this.cx.lineTo(points[i], points[i+1]);
     }
     this.cx.closePath();
     this.cx.stroke();
@@ -133,12 +131,8 @@ void main() { \
   };
 
   this.drawPoly = function(x, y, angle, size, points) {
-    var arr = new Float32Array(points.length * 2);
-    for (var i = 0; i < points.length; i++) {
-      arr.set(points[i], i*2);
-    }
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.bufferData(gl.ARRAY_BUFFER, arr, gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, points, gl.STATIC_DRAW);
 
     mat3.identity(mat);
     mat3.mul(mat, mat, projectionMatrix);
@@ -149,23 +143,20 @@ void main() { \
     gl.enableVertexAttribArray(positionLocation);
     gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
     gl.uniformMatrix3fv(matrixLocation, false, mat);
-    gl.drawArrays(gl.LINE_LOOP, 0, points.length);
+    gl.drawArrays(gl.LINE_LOOP, 0, points.length / 2);
   };
 }
 
 function makePoints() {
-  var points = [];
   var count = 15;
+  var points = new Float32Array(count * 2);
   for (var i = 0; i < count; i++) {
     var angle = i * 2 * Math.PI / count;
     var radius = Math.random() * (1.0 - 0.5) + 0.5;
-    points.push(p2r(angle, radius));
+    points[2 * i] = radius * Math.cos(angle);
+    points[2 * i + 1] = radius * Math.sin(angle);
   }
   return points;
-}
-
-function p2r(angle, radius) {
-  return [radius * Math.cos(angle), radius * Math.sin(angle)];
 }
 
 function asteroid(startx, starty) {
