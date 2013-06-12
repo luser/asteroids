@@ -4,20 +4,20 @@ var renderer = null;
 
 var ratio = 1;
 var perfnow = function() { return Date.now(); };
-if (window.performance.now) {
+if (window.performance && window.performance.now) {
   perfnow = function() { return performance.now(); };
-} else if (window.performance.webkitNow) {
+} else if (window.performance && window.performance.webkitNow) {
   perfnow = function() { return performance.webkitNow(); };
 }
-if (!('requestAnimationFrame' in window)) {
-  if ('webkitRequestAnimationFrame' in window) {
+if (!window.requestAnimationFrame) {
+  if (window.webkitRequestAnimationFrame) {
     requestAnimationFrame = webkitRequestAnimationFrame;
-  } else if ('mozRequestAnimationFrame' in window) {
+  } else if (window.mozRequestAnimationFrame) {
     requestAnimationFrame = mozRequestAnimationFrame;
-  } else if ('msRequestAnimationFrame' in window) {
+  } else if (window.msRequestAnimationFrame) {
     requestAnimationFrame = msRequestAnimationFrame;
   } else {
-    requestAnimationFrame  = function(callback) {
+    requestAnimationFrame = function(callback) {
       setTimeout(callback, 16.666);
     };
   }
