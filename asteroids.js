@@ -4,8 +4,10 @@ var renderer = null;
 
 var ratio = 1;
 var perfnow = function() { return Date.now(); };
-if ('performance' in window) {
+if (window.performance.now) {
   perfnow = function() { return performance.now(); };
+} else if (window.performance.webkitNow) {
+  perfnow = function() { return performance.webkitNow(); };
 }
 if (!('requestAnimationFrame' in window)) {
   if ('webkitRequestAnimationFrame' in window) {
