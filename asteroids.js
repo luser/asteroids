@@ -4,7 +4,7 @@ var NUM_ASTEROIDS = 10;
 // means asteroids jump positions when they wrap server side.
 var GAME_WIDTH = 4000;
 var GAME_HEIGHT = 4000;
-var asteroids = [];
+var things = [];
 var renderer = null;
 var server = null;
 var client = null;
@@ -196,9 +196,10 @@ function asteroid(startx, starty) {
   }
 
   this.draw = function(renderer, maxx, maxy) {
-    var x = this.x % maxx;
-    var y = this.y % maxy;
+    var x = this.x;
+    var y = this.y;
     draw(this, renderer, x, y);
+      /*
     if (x - this.radius < 0) {
       draw(this, renderer, maxx + x, y);
     } else if (x + this.size > maxx) {
@@ -209,6 +210,7 @@ function asteroid(startx, starty) {
     } else if (y + this.radius > maxy) {
       draw(this, renderer, x, y - maxy);
     }
+*/
   };
 
   this.run = function(elapsed) {
@@ -233,6 +235,51 @@ function asteroid(startx, starty) {
 }
 asteroid.prototype = netobject.register(asteroid);
 
+function ship(startx, starty) {
+  netobject.call(this, {x: netprop.f32, y: netprop.f32,
+                        angle: netprop.f32,
+                        velocity: netprop.i8});
+
+  this.x = startx;
+  this.y = starty;
+  this.angle = 0;
+  this.velocity = 0;
+  this.thrust = 0;
+  this.rotation = 0;
+
+  const points = new Float32Array([0, 10, 10, -10, -10, -10]);
+  this.draw = function(renderer, maxx, maxy) {
+      renderer.drawPoly(this.x, this.y, this.angle, 2, points);
+  };
+
+  this.run = function(elapsed) {
+      this.angle += elapsed * this.rotation;
+      if (this.thrust > 0) {
+          this.y += this.thrust * elapsed;
+      }
+  };
+
+  this.applyInput = function(input) {
+      this.rotation = input.rotate * 2 * Math.PI / 365; //X factor
+      this.thrust = input.thrust;
+      //input.fire
+  };
+}
+ship.prototype = netobject.register(ship);
+
+function handleInput(input) {
+    this.player.applyInput(input);
+}
+
+// Player input
+function input() {
+  netobject.call(this, {rotate: netprop.i8,
+                        thrust: netprop.u8,
+                        // Wish I had a 1-bit type!
+                        fire: netprop.u8});
+}
+input.prototype = netobject.register(input, clientinput);
+
 function draw() {
   var c = document.getElementById("c");
   renderer.clear();
@@ -241,6 +288,27 @@ function draw() {
     t[i].draw(renderer, c.width, c.height);
   }
   requestAnimationFrame(draw);
+}
+
+var keys = new Set(["Up", "Left", "Right", " "]);
+function keyhandler(e) {
+  if (!client) {
+      return;
+  }
+  if (keys.has(e.key)) {
+    var press = e.type == "keydown";
+    var i = client.getNextInput();
+    if (e.key == "Left") {
+      i.rotate = press ? -127 : 0;
+    } else if (e.key == "Right") {
+      i.rotate = press ? 127 : 0;
+    } else if (e.key == "Up") {
+      i.thrust = press ? 255 : 0;
+    } else if (e.keyCode == " ") {
+      i.fire = press ? 1 : 0;
+    }
+    e.preventDefault();
+  }
 }
 
 function resizeCanvas() {
@@ -263,14 +331,14 @@ function haveWebGL(c) {
 function runServerFrame() {
   var now = perfnow();
   var elapsed = (now - last) / 1000;
-  for (var i=0; i < asteroids.length; i++) {
-    asteroids[i].run(elapsed);
+  for (var i=0; i < things.length; i++) {
+    things[i].run(elapsed);
   }
   last = now;
 }
 
 function sendToClients() {
-  server.updateClients(asteroids);
+  server.updateClients(things);
 }
 
 function startServer() {
@@ -278,16 +346,25 @@ function startServer() {
   var transmit_rate = 50;
   server = new server_net();
   for (var i=0; i<NUM_ASTEROIDS; i++) {
-    asteroids.push(new asteroid(randInt(0, c.width), randInt(0, c.height)));
+    things.push(new asteroid(randInt(0, GAME_WIDTH), randInt(0, GAME_HEIGHT)));
   }
   setInterval(runServerFrame, server_rate);
   setInterval(sendToClients, transmit_rate);
 }
 
 function addLocalClient() {
-  client = new client_net({send: function(data) { sc.recv(data); } });
+  client = new client_net({send: function(data) { sc.recv(data); } }, input);
   var sc = new server_client({send: function(data) { client.recv(data); } });
+  sc.oninput = handleInput;
   server.addClient(sc);
+  var player = new ship(100/*randInt(0, GAME_WIDTH)*/, 100/*randInt(0, GAME_HEIGHT)*/);
+  things.push(player);
+  sc.player = player;
+  addEventListener("keydown", keyhandler);
+  addEventListener("keyup", keyhandler);
+  setInterval(function() {
+    client.sendToServer();
+  }, 50);
 }
 
 function setup() {
