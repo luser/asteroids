@@ -238,30 +238,43 @@ asteroid.prototype = netobject.register(asteroid);
 function ship(startx, starty) {
   netobject.call(this, {x: netprop.f32, y: netprop.f32,
                         angle: netprop.f32,
-                        velocity: netprop.i8});
+                        thrust: netprop.u8});
 
   this.x = startx;
   this.y = starty;
   this.angle = 0;
-  this.velocity = 0;
   this.thrust = 0;
   this.rotation = 0;
+  const MAX_SPEED = 400;
+  var velocity = vec2.create();
+  var currentVelocity = vec2.create();
 
   const points = new Float32Array([0, 10, 10, -10, -10, -10]);
+  const rocket_points = new Float32Array([3, -10, 0, -18, -3, -10]);
   this.draw = function(renderer, maxx, maxy) {
       renderer.drawPoly(this.x, this.y, this.angle, 2, points);
+      if (this.thrust > 0) {
+          renderer.drawPoly(this.x, this.y, this.angle, 2, rocket_points);
+      }
   };
 
   this.run = function(elapsed) {
       this.angle += elapsed * this.rotation;
-      if (this.thrust > 0) {
-          this.y += this.thrust * elapsed;
-      }
+      this.x -= velocity[0] * elapsed;
+      this.y += velocity[1] * elapsed;
   };
 
   this.applyInput = function(input) {
       this.rotation = input.rotate * 2 * Math.PI / 365; //X factor
       this.thrust = input.thrust;
+      currentVelocity[0] = Math.sin(this.angle) * this.thrust/2;
+      currentVelocity[1] = Math.cos(this.angle) * this.thrust/2;
+      vec2.add(velocity, velocity, currentVelocity);
+      var len = vec2.len(velocity);
+      if (len > MAX_SPEED) {
+          vec2.normalize(velocity, velocity);
+          vec2.scale(velocity, velocity, MAX_SPEED);
+      }
       //input.fire
   };
 }
@@ -277,6 +290,12 @@ function input() {
                         thrust: netprop.u8,
                         // Wish I had a 1-bit type!
                         fire: netprop.u8});
+
+  this.copy = function(other) {
+      this.rotate = other.rotate;
+      this.thrust = other.thrust;
+      this.fire = other.fire;
+  };
 }
 input.prototype = netobject.register(input, clientinput);
 
@@ -291,6 +310,7 @@ function draw() {
 }
 
 var keys = new Set(["Up", "Left", "Right", " "]);
+var lastInput = null;
 function keyhandler(e) {
   if (!client) {
       return;
@@ -298,6 +318,9 @@ function keyhandler(e) {
   if (keys.has(e.key)) {
     var press = e.type == "keydown";
     var i = client.getNextInput();
+    if (lastInput) {
+        i.copy(lastInput);
+    }
     if (e.key == "Left") {
       i.rotate = press ? -127 : 0;
     } else if (e.key == "Right") {
@@ -307,6 +330,7 @@ function keyhandler(e) {
     } else if (e.keyCode == " ") {
       i.fire = press ? 1 : 0;
     }
+    lastInput = i;
     e.preventDefault();
   }
 }
