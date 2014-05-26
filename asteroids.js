@@ -1,4 +1,4 @@
-var NUM_ASTEROIDS = 10;
+var NUM_ASTEROIDS = 40;
 // Arbitrary, but try to set larger than max expected client screen resolution.
 //XXX: This doesn't actually work right in practice. Client wrapping + server wrapping
 // means asteroids jump positions when they wrap server side.
@@ -171,6 +171,19 @@ function makePoints() {
   return points;
 }
 
+function wrapAround(self) {
+    if (self.x > GAME_WIDTH) {
+        self.x -= GAME_WIDTH;
+    } else if (self.x < 0) {
+        self.x += GAME_WIDTH;
+    }
+    if (self.y > GAME_HEIGHT) {
+        self.y -= GAME_HEIGHT;
+    } else if (self.y < 0) {
+        self.y += GAME_HEIGHT;
+    }
+}
+
 function asteroid(startx, starty) {
   netobject.call(this, {x: netprop.f32, y: netprop.f32,
                         angle: netprop.f32,
@@ -195,10 +208,11 @@ function asteroid(startx, starty) {
     renderer.drawPoly(x, y, self.angle, self.radius, self.points);
   }
 
-  this.draw = function(renderer, maxx, maxy) {
+  this.draw = function(renderer, cx, cy, w, h) {
     var x = this.x;
     var y = this.y;
-    draw(this, renderer, x, y);
+    //TODO: handle wraparound
+    draw(this, renderer, x - cx, y - cy);
       /*
     if (x - this.radius < 0) {
       draw(this, renderer, maxx + x, y);
@@ -219,17 +233,8 @@ function asteroid(startx, starty) {
       this.points = new Float32Array(this.points);
     }
     this.x += elapsed * this.dx;
-    if (this.x > GAME_WIDTH) {
-      this.x -= GAME_WIDTH;
-    } else if (this.x < 0) {
-      this.x += GAME_WIDTH;
-    }
     this.y += elapsed * this.dy;
-    if (this.y > GAME_HEIGHT) {
-      this.y -= GAME_HEIGHT;
-    } else if (this.y < 0) {
-      this.y += GAME_HEIGHT;
-    }
+    wrapAround(this);
     this.angle += elapsed * this.dr;
   };
 }
@@ -251,10 +256,10 @@ function ship(startx, starty) {
 
   const points = new Float32Array([0, 10, 10, -10, -10, -10]);
   const rocket_points = new Float32Array([3, -10, 0, -18, -3, -10]);
-  this.draw = function(renderer, maxx, maxy) {
-      renderer.drawPoly(this.x, this.y, this.angle, 2, points);
+  this.draw = function(renderer, cx, cy, w, h) {
+      renderer.drawPoly(this.x - cx, this.y - cy, this.angle, 2, points);
       if (this.thrust > 0) {
-          renderer.drawPoly(this.x, this.y, this.angle, 2, rocket_points);
+          renderer.drawPoly(this.x - cx, this.y - cy, this.angle, 2, rocket_points);
       }
   };
 
@@ -262,6 +267,7 @@ function ship(startx, starty) {
       this.angle += elapsed * this.rotation;
       this.x -= velocity[0] * elapsed;
       this.y += velocity[1] * elapsed;
+      wrapAround(this);
   };
 
   this.applyInput = function(input) {
@@ -303,8 +309,15 @@ function draw() {
   var c = document.getElementById("c");
   renderer.clear();
   var t = client.things;
+  // Try to center the client.
+  var cx = c.width/2;
+  var cy = c.height/2;
+  if (client && client.self) {
+      cx = client.self.x - c.width/2;
+      cy = client.self.y - c.height/2;
+  }
   for (var i=0; i < t.length; i++) {
-    t[i].draw(renderer, c.width, c.height);
+    t[i].draw(renderer, cx, cy, c.width, c.height);
   }
   requestAnimationFrame(draw);
 }
@@ -381,9 +394,10 @@ function addLocalClient() {
   var sc = new server_client({send: function(data) { client.recv(data); } });
   sc.oninput = handleInput;
   server.addClient(sc);
-  var player = new ship(100/*randInt(0, GAME_WIDTH)*/, 100/*randInt(0, GAME_HEIGHT)*/);
+  var player = new ship(randInt(0, GAME_WIDTH), randInt(0, GAME_HEIGHT));
   things.push(player);
   sc.player = player;
+  sc.clientThing = player;
   addEventListener("keydown", keyhandler);
   addEventListener("keyup", keyhandler);
   setInterval(function() {
