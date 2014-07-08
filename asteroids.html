@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<title>asteroid</title>
+<style>
+canvas {
+  position: absolute;
+  top: 0px;
+  left: 0px;
+}
+</style>
+<script src="gl-matrix-min.js"></script>
+<script src="netgame.js"></script>
+<script src="asteroids.js"></script>
+</head>
+<body onload="setup()" onresize="resizeCanvas()">
+<canvas id="c" onclick="fullscreen(this)"></canvas>
+</body>
+</html>

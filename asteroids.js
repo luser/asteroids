@@ -4,20 +4,20 @@ var renderer = null;
 
 var ratio = 1;
 var perfnow = function() { return Date.now(); };
-if (window.performance.now) {
+if (window.performance && window.performance.now) {
   perfnow = function() { return performance.now(); };
-} else if (window.performance.webkitNow) {
+} else if (window.performance && window.performance.webkitNow) {
   perfnow = function() { return performance.webkitNow(); };
 }
-if (!('requestAnimationFrame' in window)) {
-  if ('webkitRequestAnimationFrame' in window) {
+if (!window.requestAnimationFrame) {
+  if (window.webkitRequestAnimationFrame) {
     requestAnimationFrame = webkitRequestAnimationFrame;
-  } else if ('mozRequestAnimationFrame' in window) {
+  } else if (window.mozRequestAnimationFrame) {
     requestAnimationFrame = mozRequestAnimationFrame;
-  } else if ('msRequestAnimationFrame' in window) {
+  } else if (window.msRequestAnimationFrame) {
     requestAnimationFrame = msRequestAnimationFrame;
   } else {
-    requestAnimationFrame  = function(callback) {
+    requestAnimationFrame = function(callback) {
       setTimeout(callback, 16.666);
     };
   }
@@ -165,47 +165,64 @@ function makePoints() {
 }
 
 function asteroid(startx, starty) {
-  var points = makePoints();
-  var x = startx, y = starty, r = 0;
-  var size = randInt(10, 50);
-  var dx = randInt(-20, 20);
-  var dy = randInt(-20, 20);
-  var dr = randInt(-500, 500) * 2 * Math.PI / (365 * size);
+  netobject.call(this, {x: netprop.f32, y: netprop.f32,
+                        angle: netprop.f32,
+                        // Would be nice if we had < 8 bit ints...
+                        size: netprop.u8,
+                        dx: netprop.i8, dy: netprop.i8,
+                        dr: netprop.f32,
+                        points: netprop.array(netprop.f32)
+                       });
+  this.points = makePoints();
+  this.x = startx;
+  this.y = starty;
+  this.angle = 0;
+  this.size = randInt(10, 50);
+  // Velocity in units per second
+  this.dx = randInt(-20, 20);
+  this.dy = randInt(-20, 20);
+  // Rotation in radians per second
+  this.dr = randInt(-500, 500) * 2 * Math.PI / (365 * this.size);
 
-  function draw(renderer, x, y) {
-    renderer.drawPoly(x, y, r, size, points);
+  function draw(self, renderer, x, y) {
+    renderer.drawPoly(x, y, self.angle, self.size, self.points);
   }
 
   this.draw = function(renderer, maxx, maxy) {
-    draw(renderer, x, y);
-    if (x - size < 0) {
-      draw(renderer, maxx + x, y);
-    } else if (x + size > maxx) {
-      draw(renderer, x - maxx, y);
+    draw(this, renderer, this.x, this.y);
+    if (this.x - this.size < 0) {
+      draw(this, renderer, maxx + this.x, this.y);
+    } else if (this.x + this.size > maxx) {
+      draw(this, renderer, this.x - maxx, this.y);
     }
-    if (y - size < 0) {
-      draw(renderer, x, maxy + y);
-    } else if (y + size > maxy) {
-      draw(renderer, x, y - maxy);
+    if (this.y - this.size < 0) {
+      draw(this, renderer, this.x, maxy + this.y);
+    } else if (this.y + this.size > maxy) {
+      draw(this, renderer, this.x, this.y - maxy);
     }
   };
 
   this.run = function(elapsed, maxx, maxy) {
-    x += elapsed * dx;
-    if (x > maxx) {
-      x -= maxx;
-    } else if (x < 0) {
-      x += maxx;
+    //TODO: fix netgame.js to deal with typed arrays
+    if (!(this.points instanceof Float32Array)) {
+      this.points = new Float32Array(this.points);
     }
-    y += elapsed * dy;
-    if (y > maxy) {
-      y -= maxy;
-    } else if (y < 0) {
-      y += maxy;
+    this.x += elapsed * this.dx;
+    if (this.x > maxx) {
+      this.x -= maxx;
+    } else if (this.x < 0) {
+      this.x += maxx;
     }
-    r += elapsed * dr;
+    this.y += elapsed * this.dy;
+    if (this.y > maxy) {
+      this.y -= maxy;
+    } else if (this.y < 0) {
+      this.y += maxy;
+    }
+    this.angle += elapsed * this.dr;
   };
 }
+asteroid.prototype = netobject.register(asteroid);
 
 function draw() {
   var c = document.getElementById("c");
