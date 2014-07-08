@@ -247,6 +247,7 @@ function ship(startx, starty) {
 
   this.x = startx;
   this.y = starty;
+  this.radius = 20;
   this.angle = 0;
   this.thrust = 0;
   this.rotation = 0;
@@ -254,12 +255,12 @@ function ship(startx, starty) {
   var velocity = vec2.create();
   var currentVelocity = vec2.create();
 
-  const points = new Float32Array([0, 10, 10, -10, -10, -10]);
-  const rocket_points = new Float32Array([3, -10, 0, -18, -3, -10]);
+  const points = new Float32Array([0, this.radius/2, this.radius/2, -this.radius/2, -this.radius/2, -this.radius/2]);
+  const rocket_points = new Float32Array([3, -this.radius/2, 0, -18, -3, -this.radius/2]);
   this.draw = function(renderer, cx, cy, w, h) {
-      renderer.drawPoly(this.x - cx, this.y - cy, this.angle, 2, points);
+      renderer.drawPoly(this.x - cx, this.y - cy, this.angle, this.radius/10, points);
       if (this.thrust > 0) {
-          renderer.drawPoly(this.x - cx, this.y - cy, this.angle, 2, rocket_points);
+          renderer.drawPoly(this.x - cx, this.y - cy, this.angle, this.radius/10, rocket_points);
       }
   };
 
@@ -319,6 +320,7 @@ function draw() {
   for (var i=0; i < t.length; i++) {
     t[i].draw(renderer, cx, cy, c.width, c.height);
   }
+
   requestAnimationFrame(draw);
 }
 
