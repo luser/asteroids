@@ -1,6 +1,13 @@
-var NUM_ASTEROIDS = 10;
-var asteroids = [];
+var NUM_ASTEROIDS = 40;
+// Arbitrary, but try to set larger than max expected client screen resolution.
+//XXX: This doesn't actually work right in practice. Client wrapping + server wrapping
+// means asteroids jump positions when they wrap server side.
+var GAME_WIDTH = 4000;
+var GAME_HEIGHT = 4000;
+var things = [];
 var renderer = null;
+var server = null;
+var client = null;
 
 var ratio = 1;
 var perfnow = function() { return Date.now(); };
@@ -164,11 +171,24 @@ function makePoints() {
   return points;
 }
 
+function wrapAround(self) {
+    if (self.x > GAME_WIDTH) {
+        self.x -= GAME_WIDTH;
+    } else if (self.x < 0) {
+        self.x += GAME_WIDTH;
+    }
+    if (self.y > GAME_HEIGHT) {
+        self.y -= GAME_HEIGHT;
+    } else if (self.y < 0) {
+        self.y += GAME_HEIGHT;
+    }
+}
+
 function asteroid(startx, starty) {
   netobject.call(this, {x: netprop.f32, y: netprop.f32,
                         angle: netprop.f32,
                         // Would be nice if we had < 8 bit ints...
-                        size: netprop.u8,
+                        radius: netprop.u8,
                         dx: netprop.i8, dy: netprop.i8,
                         dr: netprop.f32,
                         points: netprop.array(netprop.f32)
@@ -177,64 +197,157 @@ function asteroid(startx, starty) {
   this.x = startx;
   this.y = starty;
   this.angle = 0;
-  this.size = randInt(10, 50);
+  this.radius = randInt(10, 50);
   // Velocity in units per second
   this.dx = randInt(-20, 20);
   this.dy = randInt(-20, 20);
   // Rotation in radians per second
-  this.dr = randInt(-500, 500) * 2 * Math.PI / (365 * this.size);
+  this.dr = randInt(-500, 500) * 2 * Math.PI / (365 * this.radius);
 
   function draw(self, renderer, x, y) {
-    renderer.drawPoly(x, y, self.angle, self.size, self.points);
+    renderer.drawPoly(x, y, self.angle, self.radius, self.points);
   }
 
-  this.draw = function(renderer, maxx, maxy) {
-    draw(this, renderer, this.x, this.y);
-    if (this.x - this.size < 0) {
-      draw(this, renderer, maxx + this.x, this.y);
-    } else if (this.x + this.size > maxx) {
-      draw(this, renderer, this.x - maxx, this.y);
+  this.draw = function(renderer, cx, cy, w, h) {
+    var x = this.x;
+    var y = this.y;
+    //TODO: handle wraparound
+    draw(this, renderer, x - cx, y - cy);
+      /*
+    if (x - this.radius < 0) {
+      draw(this, renderer, maxx + x, y);
+    } else if (x + this.size > maxx) {
+      draw(this, renderer, x - maxx, y);
     }
-    if (this.y - this.size < 0) {
-      draw(this, renderer, this.x, maxy + this.y);
-    } else if (this.y + this.size > maxy) {
-      draw(this, renderer, this.x, this.y - maxy);
+    if (y - this.radius < 0) {
+      draw(this, renderer, x, maxy + y);
+    } else if (y + this.radius > maxy) {
+      draw(this, renderer, x, y - maxy);
     }
+*/
   };
 
-  this.run = function(elapsed, maxx, maxy) {
+  this.run = function(elapsed) {
     //TODO: fix netgame.js to deal with typed arrays
     if (!(this.points instanceof Float32Array)) {
       this.points = new Float32Array(this.points);
     }
     this.x += elapsed * this.dx;
-    if (this.x > maxx) {
-      this.x -= maxx;
-    } else if (this.x < 0) {
-      this.x += maxx;
-    }
     this.y += elapsed * this.dy;
-    if (this.y > maxy) {
-      this.y -= maxy;
-    } else if (this.y < 0) {
-      this.y += maxy;
-    }
+    wrapAround(this);
     this.angle += elapsed * this.dr;
   };
 }
 asteroid.prototype = netobject.register(asteroid);
 
+function ship(startx, starty) {
+  netobject.call(this, {x: netprop.f32, y: netprop.f32,
+                        angle: netprop.f32,
+                        thrust: netprop.u8});
+
+  this.x = startx;
+  this.y = starty;
+  this.radius = 20;
+  this.angle = 0;
+  this.thrust = 0;
+  this.rotation = 0;
+  const MAX_SPEED = 400;
+  var velocity = vec2.create();
+  var currentVelocity = vec2.create();
+
+  const points = new Float32Array([0, this.radius/2, this.radius/2, -this.radius/2, -this.radius/2, -this.radius/2]);
+  const rocket_points = new Float32Array([3, -this.radius/2, 0, -18, -3, -this.radius/2]);
+  this.draw = function(renderer, cx, cy, w, h) {
+      renderer.drawPoly(this.x - cx, this.y - cy, this.angle, this.radius/10, points);
+      if (this.thrust > 0) {
+          renderer.drawPoly(this.x - cx, this.y - cy, this.angle, this.radius/10, rocket_points);
+      }
+  };
+
+  this.run = function(elapsed) {
+      this.angle += elapsed * this.rotation;
+      this.x -= velocity[0] * elapsed;
+      this.y += velocity[1] * elapsed;
+      wrapAround(this);
+  };
+
+  this.applyInput = function(input) {
+      this.rotation = input.rotate * 2 * Math.PI / 365; //X factor
+      this.thrust = input.thrust;
+      currentVelocity[0] = Math.sin(this.angle) * this.thrust/2;
+      currentVelocity[1] = Math.cos(this.angle) * this.thrust/2;
+      vec2.add(velocity, velocity, currentVelocity);
+      var len = vec2.len(velocity);
+      if (len > MAX_SPEED) {
+          vec2.normalize(velocity, velocity);
+          vec2.scale(velocity, velocity, MAX_SPEED);
+      }
+      //input.fire
+  };
+}
+ship.prototype = netobject.register(ship);
+
+function handleInput(input) {
+    this.player.applyInput(input);
+}
+
+// Player input
+function input() {
+  netobject.call(this, {rotate: netprop.i8,
+                        thrust: netprop.u8,
+                        // Wish I had a 1-bit type!
+                        fire: netprop.u8});
+
+  this.copy = function(other) {
+      this.rotate = other.rotate;
+      this.thrust = other.thrust;
+      this.fire = other.fire;
+  };
+}
+input.prototype = netobject.register(input, clientinput);
+
 function draw() {
   var c = document.getElementById("c");
-  var now = perfnow();
-  var elapsed = (now - last) / 1000;
   renderer.clear();
-  for (var i=0; i < asteroids.length; i++) {
-    asteroids[i].run(elapsed, c.width, c.height);
-    asteroids[i].draw(renderer, c.width, c.height);
+  var t = client.things;
+  // Try to center the client.
+  var cx = c.width/2;
+  var cy = c.height/2;
+  if (client && client.self) {
+      cx = client.self.x - c.width/2;
+      cy = client.self.y - c.height/2;
   }
-  last = now;
+  for (var i=0; i < t.length; i++) {
+    t[i].draw(renderer, cx, cy, c.width, c.height);
+  }
+
   requestAnimationFrame(draw);
+}
+
+var keys = new Set(["Up", "Left", "Right", " "]);
+var lastInput = null;
+function keyhandler(e) {
+  if (!client) {
+      return;
+  }
+  if (keys.has(e.key)) {
+    var press = e.type == "keydown";
+    var i = client.getNextInput();
+    if (lastInput) {
+        i.copy(lastInput);
+    }
+    if (e.key == "Left") {
+      i.rotate = press ? -127 : 0;
+    } else if (e.key == "Right") {
+      i.rotate = press ? 127 : 0;
+    } else if (e.key == "Up") {
+      i.thrust = press ? 255 : 0;
+    } else if (e.keyCode == " ") {
+      i.fire = press ? 1 : 0;
+    }
+    lastInput = i;
+    e.preventDefault();
+  }
 }
 
 function resizeCanvas() {
@@ -254,6 +367,46 @@ function haveWebGL(c) {
   return c.getContext("experimental-webgl") != null;
 }
 
+function runServerFrame() {
+  var now = perfnow();
+  var elapsed = (now - last) / 1000;
+  for (var i=0; i < things.length; i++) {
+    things[i].run(elapsed);
+  }
+  last = now;
+}
+
+function sendToClients() {
+  server.updateClients(things);
+}
+
+function startServer() {
+  var server_rate = 15;
+  var transmit_rate = 50;
+  server = new server_net();
+  for (var i=0; i<NUM_ASTEROIDS; i++) {
+    things.push(new asteroid(randInt(0, GAME_WIDTH), randInt(0, GAME_HEIGHT)));
+  }
+  setInterval(runServerFrame, server_rate);
+  setInterval(sendToClients, transmit_rate);
+}
+
+function addLocalClient() {
+  client = new client_net({send: function(data) { sc.recv(data); } }, input);
+  var sc = new server_client({send: function(data) { client.recv(data); } });
+  sc.oninput = handleInput;
+  server.addClient(sc);
+  var player = new ship(randInt(0, GAME_WIDTH), randInt(0, GAME_HEIGHT));
+  things.push(player);
+  sc.player = player;
+  sc.clientThing = player;
+  addEventListener("keydown", keyhandler);
+  addEventListener("keyup", keyhandler);
+  setInterval(function() {
+    client.sendToServer();
+  }, 50);
+}
+
 function setup() {
   var c = document.getElementById("c");
   renderer = (window.location.search.indexOf("renderer=canvas2d") != -1 || !haveWebGL(c)) ?
@@ -262,8 +415,9 @@ function setup() {
   resizeCanvas();
   addEventListener("mozfullscreenchange", resizeCanvas);
   addEventListener("webkitfullscreenchange", resizeCanvas);
-  for (var i=0; i<NUM_ASTEROIDS; i++) {
-    asteroids.push(new asteroid(randInt(0, c.width), randInt(0, c.height)));
+  if (true) {
+    startServer();
+    addLocalClient();
   }
   requestAnimationFrame(draw);
 }
